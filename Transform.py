@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import astropy.units as units
 from abc import ABC, abstractmethod
-
+from scipy.spatial.transform import Rotation as R
 
 class Transforms(ABC):
 
@@ -148,6 +148,8 @@ class t_linear(Transforms):
 
 
         # Handle rotation option
+        rot = self.parameters['rot']
+        if rot is not None:
 
 
 
