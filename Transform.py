@@ -9,13 +9,13 @@ import copy
 
 class Transforms(ABC):
 
-    def __init__(self, name: str, input_coord: np.array, input_unit: units,
-                 output_coord: np.array, output_unit: units, parameters: dict,
-                 non_invertible: bool, reverse_flag: bool, input_dim: int = None,
-                 output_dim: int = None):
+    def __init__(self, name, input_coord, input_unit,
+                 output_coord, output_unit, parameters,
+                 non_invertible, reverse_flag, input_dim=None,
+                 output_dim=None):
         """
         :type name: str
-        :type input_coord: np.array
+        :type input_coord: list
         :type input_unit: astropy.units
         :type output_coord: np.array
         :type output_unit: astropy.units
@@ -35,11 +35,6 @@ class Transforms(ABC):
         self.reverse_flag = reverse_flag
         self.input_dim = input_dim
         self.output_dim = output_dim
-
-    def composition(self):
-        # f(g(h(x))) == composition([h, g, f]) or composition(f, g, h)
-        # look at function composition in python to find standard but it seems like second is more common.
-        pass
 
     def inverse(self):
         pass
@@ -69,6 +64,16 @@ class Transforms(ABC):
         return return_dict
 
 
+# f(g(h(x))) == composition([h, g, f]) or composition(f, g, h)
+# look at function composition in python to find standard but it seems like second is more common.
+# class t_compose(Transforms):
+#     def __init__(self, t_arr):
+#
+#
+#     def apply(self, data, backward=0):
+#         pass
+
+
 class t_identity(Transforms):
     """
     Return Copy of OG data with apply
@@ -95,7 +100,7 @@ class t_linear(Transforms):
 
     rot: a rotation angle in degrees, another numpy.array. If it is one value, it is a scalar.
 
-    scale: A scaling matrix, or a scalar. another numpy.array or a scalar
+    scale: A scaling vector, or a scalar. another numpy.array or a scalar
 
     pre: The vector to be added to the data before they get multiplied by the matrix
         (equivalent of CRVAL in FITS, if you are converting from scientific to pixel units).
@@ -110,10 +115,10 @@ class t_linear(Transforms):
 
     """
 
-    def __init__(self, input_coord: np.array, input_unit: units,
-                 output_coord: np.array, output_unit: units, parameters: dict,
-                 non_invertible: bool, reverse_flag: bool, input_dim: int,
-                 output_dim: int):
+    def __init__(self, input_coord, input_unit,
+                 output_coord, output_unit, parameters, reverse_flag,
+                 non_invertible=0, input_dim=None,
+                 output_dim=None):
         # this basic implementation doesn't deal with all the cases you see in PDL. They will be implemented later
         # params = {"matrix": None, "scale": None, "rot": 0, "pre": None, "post": None, "dims": None}
 
@@ -159,7 +164,7 @@ class t_linear(Transforms):
                     rotation = R.from_euler('xyz', [rot[0], rot[1], rot[2]], degrees=True)
                     rot_matrix = rotation.as_dcm()
                     # self.parameters['matrix] = compose(rot_matrix, self.parameters['matrix])
-                    # this also works self.parameters['matrix] = np.matmul(rot_matrix, self.parameters['matrix])
+                    self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
                 else:
                     raise ValueError("Transform.linear got a strange rot option -- giving up.")
 
@@ -172,7 +177,7 @@ class t_linear(Transforms):
                     s = 0
                 rot_matrix = np.array(((c, -s), (s, c)))
                 # self.parameters['matrix] = compose(rot_matrix, self.parameters['matrix])
-                # this also works self.parameters['matrix] = np.matmul(rot_matrix, self.parameters['matrix])
+                self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
 
         # applying scaling. No matrix. Documentation
         if self.parameters['scale'] is not None and type((self.parameters['scale']) is not np.ndarray):
@@ -202,11 +207,19 @@ class t_linear(Transforms):
             if d > np.shape(data)[0]:
                 raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
 
-            x = copy.deepcopy(data[0:d]) + self.parameters['pre']
-            out = copy.deepcopy(data)
-            # out[0:d] = compose
+            if self.parameters['pre'] is not None:
+                x = copy.deepcopy(data[0:d]) + self.parameters['pre']
+            else:
+                x = copy.deepcopy(data[0:d])
 
-        elif self.non_invertible:
+            out = copy.deepcopy(data)
+            if self.parameters['post'] is not None:
+                out[0:d] = np.matmul(self.parameters['matrix'], x) + self.parameters['post']
+            else:
+                out[0:d] = np.matmul(self.parameters['matrix'], x)
+            return out
+
+        elif not self.non_invertible:
             print("is going to run inverse")
         else:
             print("trying to invert a non-invertible matrix.")
