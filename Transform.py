@@ -133,37 +133,44 @@ class t_linear(Transforms):
         else:
             if self.parameters['rot'] is not None and type(self.parameters['rot']) is np.ndarray:
                 if self.parameters['rot'].size == 1:
-                    self.input_dim = self.output_dim = 2
+                    self.input_dim = 2
+                    self.output_dim = 2
                 elif self.parameters['rot'].size == 3:
-                    self.input_dim = self.output_dim == 3
+                    self.input_dim = 3
+                    self.output_dim = 3
 
-            if self.parameters['scale'] is not None and type(self.parameters['scale']) is np.ndarray:
-                self.input_dim = self.output_dim = self.parameters['scale'].shape[0]
+            elif self.parameters['scale'] is not None and type(self.parameters['scale']) is np.ndarray:
+                self.input_dim = self.parameters['scale'].shape[0]
+                self.output_dim = self.parameters['scale'].shape[0]
                 # look at craig's response to email about this
             elif self.parameters['pre'] is not None and type(self.parameters['pre']) is np.ndarray:
-                self.input_dim = self.output_dim = self.parameters['pre'].shape[0]
+                self.input_dim = self.parameters['pre'].shape[0]
+                self.output_dim = self.parameters['pre'].shape[0]
             elif self.parameters['post'] is not None and type(self.parameters['post']) is np.ndarray:
-                self.input_dim = self.output_dim = self.parameters['post'].shape[0]
+                self.input_dim = self.parameters['post'].shape[0]
+                self.output_dim = self.parameters['post'].shape[0]
             elif self.parameters['dims'] is not None:
-                self.input_dim = self.output_dim = self.parameters['dims']
+                self.input_dim = self.parameters['dims']
+                self.output_dim = self.parameters['dims']
             else:
                 print("Assuming 2-D transform(set dims options)")
-                self.input_dim = self.output_dim = 2
+                self.input_dim = 2
+                self.output_dim = 2
 
-            self.parameters['matrix'] = np.zeros([self.input_dim, self.output_dim])
+            self.parameters['matrix'] = np.zeros((self.input_dim, self.output_dim))
             np.fill_diagonal(self.parameters['matrix'], 1)
 
         # Handle rotation option
         rot = self.parameters['rot']
         if rot is not None:
-            if rot is np.ndarray:
+            if type(rot) is np.ndarray:
                 if np.ndim(rot) == 2:
                     # rotation matrix, need to use compose
+                    self.parameters['matrix'] = np.matmul(rot, self.parameters['matrix'])
                     print("composing new matrix")
                 elif np.size(rot) == 3:
                     rotation = R.from_euler('xyz', [rot[0], rot[1], rot[2]], degrees=True)
                     rot_matrix = rotation.as_dcm()
-                    # self.parameters['matrix] = compose(rot_matrix, self.parameters['matrix])
                     self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
                 else:
                     raise ValueError("Transform.linear got a strange rot option -- giving up.")
@@ -176,7 +183,6 @@ class t_linear(Transforms):
                 if s < 1e-10:
                     s = 0
                 rot_matrix = np.array(((c, -s), (s, c)))
-                # self.parameters['matrix] = compose(rot_matrix, self.parameters['matrix])
                 self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
 
         # applying scaling. No matrix. Documentation
@@ -194,6 +200,7 @@ class t_linear(Transforms):
                     self.parameters['matrix'][j][j] *= self.parameters['scale'][j]
 
         # need to check for inverse and set inverted flag. Throw error in apply
+        self.non_invertible = 0
         try:
             self.inv = np.linalg.inv(self.parameters['matrix'])
         except np.linalg.LinAlgError:
@@ -202,7 +209,6 @@ class t_linear(Transforms):
 
     def apply(self, data, backwards=0):
         if (not backwards and not self.reverse_flag) or (backwards and self.reverse_flag):
-            print("forward")
             d = self.parameters['matrix'].shape[0]
             if d > np.shape(data)[0]:
                 raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
@@ -214,12 +220,37 @@ class t_linear(Transforms):
 
             out = copy.deepcopy(data)
             if self.parameters['post'] is not None:
-                out[0:d] = np.matmul(self.parameters['matrix'], x) + self.parameters['post']
+                out[0:d] = np.matmul(x, self.parameters['matrix']) + self.parameters['post']
             else:
-                out[0:d] = np.matmul(self.parameters['matrix'], x)
+                out[0:d] = np.matmul(x, self.parameters['matrix'])
             return out
 
         elif not self.non_invertible:
-            print("is going to run inverse")
+            d = self.inv.shape[0]
+            if d > np.shape(data)[0]:
+                raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
+
+            if self.parameters['pre'] is not None:
+                x = copy.deepcopy(data[0:d]) + self.parameters['pre']
+            else:
+                x = copy.deepcopy(data[0:d])
+
+            out = copy.deepcopy(data)
+            if self.parameters['post'] is not None:
+                out[0:d] = np.matmul(x, self.inv) + self.parameters['post']
+            else:
+                out[0:d] = np.matmul(x, self.inv)
+
+            return out
         else:
             print("trying to invert a non-invertible matrix.")
+
+    def __str__(self):
+        to_string = f"Transform name: {self.name}\nInput Coord: {self.input_coord}\nInput Unit:{self.input_unit}\n" \
+                    f"Output Coord: {self.output_coord}\nOutput Units: {self.output_unit}\n" \
+                    f"matrix:{self.parameters['matrix']}\nscale:{self.parameters['scale']}\nrot: " \
+                    f"{self.parameters['rot']}\npre: {self.parameters['pre']}\npost: {self.parameters['post']}\n" \
+                    f"dims: {self.parameters['dims']}\nReverse Flag: {self.reverse_flag}\n" \
+                    f"Non-Invertible: {self.non_invertible}\nInput Dim: {self.input_dim}\nOutput Dim: {self.output_dim}"
+
+        return to_string
