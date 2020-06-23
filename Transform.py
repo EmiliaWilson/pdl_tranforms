@@ -7,11 +7,11 @@ from scipy.spatial.transform import Rotation as R
 import copy
 
 
-class Transforms(ABC):
+class Transform(ABC):
 
     def __init__(self, name, input_coord, input_unit,
                  output_coord, output_unit, parameters,
-                 non_invertible, reverse_flag, input_dim=None,
+                 reverse_flag, input_dim=None,
                  output_dim=None):
         """
         :type name: str
@@ -20,7 +20,7 @@ class Transforms(ABC):
         :type output_coord: np.array
         :type output_unit: astropy.units
         :type parameters: dict
-        :type non_invertible: bool
+
         :type reverse_flag: bool
         :type input_dim: int
         :type output_dim: int
@@ -31,7 +31,7 @@ class Transforms(ABC):
         self.output_coord = output_coord
         self.output_unit = output_unit
         self.parameters = parameters
-        self.non_invertible = non_invertible
+        self._non_invertible = 0
         self.reverse_flag = reverse_flag
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -64,33 +64,57 @@ class Transforms(ABC):
         return return_dict
 
 
-# f(g(h(x))) == composition([h, g, f]) or composition(f, g, h)
+# f(g(h(x))) == composition([h, g, f]) or composition([f, g, h])
 # look at function composition in python to find standard but it seems like second is more common.
-# class t_compose(Transforms):
-#     def __init__(self, t_arr):
-#
-#
-#     def apply(self, data, backward=0):
-#         pass
+class t_compose(Transform):
+    def __init__(self, t_list, input_coord=None, input_unit=None, output_coord=None, output_unit=None,
+                 parameters=None, reverse_flag=0, input_dim=None, output_dim=None):
+        self.func_list = []
+        compose_name = ""
+        for tform in t_list:
+            if type(tform) is t_compose:
+                self.func_list.extend(tform.func_list)
+                compose_name += tform.name
+            else:
+                self.func_list.append(tform)
+                if tform.reverse_flag == 1:
+                    compose_name += f" x {tform.name} inverse"
+                else:
+                    compose_name += f" x {tform.name}"
+        super().__init__(name=compose_name, input_coord=input_coord, input_unit=input_unit, output_coord=output_coord,
+                         output_unit=output_unit, parameters=parameters, reverse_flag=reverse_flag, input_dim=input_dim,
+                         output_dim=output_dim)
+
+    def apply(self, data, backward=0):
+        out_data = copy.deepcopy(data)
+        if backward:
+            for tform in reversed(self.func_list):
+                out_data = tform.apply(out_data, backward=1)
+
+        else:
+            for tform in reversed(self.func_list):
+                out_data = tform.apply(out_data)
+
+        return out_data
 
 
-class t_identity(Transforms):
+class t_identity(Transform):
     """
     Return Copy of OG data with apply
     """
 
     def __init__(self, input_coord=None, input_unit=None, output_coord=None,
-                 output_unit=None, parameters=None, non_invertible=None,
+                 output_unit=None, parameters=None,
                  reverse_flag=None, input_dim=0, output_dim=0):
         super().__init__("identity", input_coord=input_coord, input_unit=input_unit, output_coord=output_coord,
-                         output_unit=output_unit, parameters=parameters, non_invertible=non_invertible,
+                         output_unit=output_unit, parameters=parameters,
                          reverse_flag=reverse_flag, input_dim=input_dim, output_dim=output_dim)
 
     def apply(self, data, backward=0):
-        pass
+        return copy.deepcopy(data)
 
 
-class t_linear(Transforms):
+class t_linear(Transform):
     """
     parameter is a dict with the keys:
 
@@ -117,13 +141,13 @@ class t_linear(Transforms):
 
     def __init__(self, input_coord, input_unit,
                  output_coord, output_unit, parameters, reverse_flag,
-                 non_invertible=0, input_dim=None,
+                 name='t_linear', input_dim=None,
                  output_dim=None):
         # this basic implementation doesn't deal with all the cases you see in PDL. They will be implemented later
         # params = {"matrix": None, "scale": None, "rot": 0, "pre": None, "post": None, "dims": None}
 
-        super().__init__("t_linear", input_coord, input_unit, output_coord,
-                         output_unit, parameters, non_invertible,
+        super().__init__(name, input_coord, input_unit, output_coord,
+                         output_unit, parameters,
                          reverse_flag, input_dim, output_dim)
 
         # Figuring out the number of dimensions to transform, and, if necessary, generate a new matrix
@@ -166,12 +190,11 @@ class t_linear(Transforms):
             if type(rot) is np.ndarray:
                 if np.ndim(rot) == 2:
                     # rotation matrix, need to use compose
-                    self.parameters['matrix'] = np.matmul(rot, self.parameters['matrix'])
-                    print("composing new matrix")
+                    self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot)
                 elif np.size(rot) == 3:
                     rotation = R.from_euler('xyz', [rot[0], rot[1], rot[2]], degrees=True)
                     rot_matrix = rotation.as_dcm()
-                    self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
+                    self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot_matrix)
                 else:
                     raise ValueError("Transform.linear got a strange rot option -- giving up.")
 
@@ -183,7 +206,7 @@ class t_linear(Transforms):
                 if s < 1e-10:
                     s = 0
                 rot_matrix = np.array(((c, -s), (s, c)))
-                self.parameters['matrix'] = np.matmul(rot_matrix, self.parameters['matrix'])
+                self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot_matrix)
 
         # applying scaling. No matrix. Documentation
         if self.parameters['scale'] is not None and type((self.parameters['scale']) is not np.ndarray):
@@ -200,15 +223,15 @@ class t_linear(Transforms):
                     self.parameters['matrix'][j][j] *= self.parameters['scale'][j]
 
         # need to check for inverse and set inverted flag. Throw error in apply
-        self.non_invertible = 0
+        self._non_invertible = 0
         try:
             self.inv = np.linalg.inv(self.parameters['matrix'])
         except np.linalg.LinAlgError:
             self.inv = None
-            self.non_invertible = 1
+            self._non_invertible = 1
 
-    def apply(self, data, backwards=0):
-        if (not backwards and not self.reverse_flag) or (backwards and self.reverse_flag):
+    def apply(self, data, backward=0):
+        if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             d = self.parameters['matrix'].shape[0]
             if d > np.shape(data)[0]:
                 raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
@@ -225,7 +248,7 @@ class t_linear(Transforms):
                 out[0:d] = np.matmul(x, self.parameters['matrix'])
             return out
 
-        elif not self.non_invertible:
+        elif not self._non_invertible:
             d = self.inv.shape[0]
             if d > np.shape(data)[0]:
                 raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
@@ -251,6 +274,36 @@ class t_linear(Transforms):
                     f"matrix:{self.parameters['matrix']}\nscale:{self.parameters['scale']}\nrot: " \
                     f"{self.parameters['rot']}\npre: {self.parameters['pre']}\npost: {self.parameters['post']}\n" \
                     f"dims: {self.parameters['dims']}\nReverse Flag: {self.reverse_flag}\n" \
-                    f"Non-Invertible: {self.non_invertible}\nInput Dim: {self.input_dim}\nOutput Dim: {self.output_dim}"
+                    f"Non-Invertible: {self._non_invertible}\nInput Dim: {self.input_dim}\nOutput Dim: {self.output_dim}"
 
         return to_string
+
+
+class t_radial(Transform):
+    """
+    parameter is a dict with keys:
+
+    direct: Generate(theta, r) coordinates out (this is the default); incompatible with Conformal. Theta is in Radians,
+        and the radial coordinate is in the units of distance in the input plane
+
+    r0: If defined, this floating-point value causes t_radial to generate
+        (theta, ln(r/r0)) coordinates out.  Theta is in radians, and the
+        radial coordinate varies by 1 for each e-folding of the r0-scaled
+        distance from the input origin.  The logarithmic scaling is useful for
+        viewing both large and small things at the same time, and for keeping
+        shapes of small things preserved in the image.
+
+    origin: Defaults to (0, 0, 0). This is the origin of the expansion, pass in a numpy array.
+
+    u: units, Default is 'radians', this is the angular unit to be used for the azimuth
+    """
+
+    def __init__(self, input_coord, input_unit,
+                 output_coord, output_unit, parameters, reverse_flag,
+                 name='t_radial', input_dim=None,
+                 output_dim=None):
+
+        pass
+
+    def apply(self, data, backward=0):
+        pass
