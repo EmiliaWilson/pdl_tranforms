@@ -144,5 +144,38 @@ class TestCompose(unittest.TestCase):
         self.assertAlmostEqual(data_out[2], final_data[2])
 
 
+class TestRadial(unittest.TestCase):
+    data = np.array((1, 2, 3), dtype=np.float64)
+    params = {'direct': None, 'r0': None, 'origin': np.array((0, 0, 0)), 'u': 'radians'}
+    t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                reverse_flag=0)
+    params = {'direct': None, 'r0': None, 'origin': np.array((0.5, 0.5, 0.5)), 'u': 'radians'}
+    t_rad2 = Transform.t_radial(name='t_rad2', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                reverse_flag=0)
+
+    def test_basic(self):
+        data_out = self.t_rad1.apply(self.data)
+        print(data_out)
+        self.assertAlmostEqual(data_out[0], 5.1760366)
+        self.assertAlmostEqual(data_out[1], 2.236068)
+        self.assertAlmostEqual(data_out[2], 3)
+
+        data_out = self.t_rad1.apply(self.data, backward=1)
+        print(f"inverted: {data_out}")
+        self.assertAlmostEqual(data_out[0], 1.0806046)
+        self.assertAlmostEqual(data_out[1], -1.682942)
+        self.assertAlmostEqual(data_out[2], 3)
+        # self.assertTrue(True)
+
+    def test_origin(self):
+        data_out = self.t_rad2.apply(self.data)
+        print(data_out)
+        self.assertAlmostEqual(data_out[0], 5.0341395)
+        self.assertAlmostEqual(data_out[1], 1.5811388)
+        self.assertAlmostEqual(data_out[2], 3)
+
+
 if __name__ == '__main__':
     unittest.main()

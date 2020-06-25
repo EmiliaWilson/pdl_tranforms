@@ -295,15 +295,69 @@ class t_radial(Transform):
 
     origin: Defaults to (0, 0, 0). This is the origin of the expansion, pass in a numpy array.
 
-    u: units, Default is 'radians', this is the angular unit to be used for the azimuth
+    u: units, Default is 'radians', this is the angular unit to be used for the azimuth. degrees is the other option
     """
+    _RAD2DEG = 180 / np.pi
 
     def __init__(self, input_coord, input_unit,
                  output_coord, output_unit, parameters, reverse_flag,
                  name='t_radial', input_dim=None,
                  output_dim=None):
+        super().__init__(name, input_coord, input_unit, output_coord,
+                         output_unit, parameters,
+                         reverse_flag, input_dim, output_dim)
 
-        pass
+        if self.parameters['u'] == 'degrees':
+            self._argunit = self._RAD2DEG
+        else:
+            self._argunit = 1.0
+
+        self.input_dim = 2
+        self.output_dim = 2
+
+        if self.parameters['r0']:
+            # line 3458
+            self.output_coord = ["Azimuth", "Ln radius"]
+            self.output_unit = self.parameters['u']
+        else:
+            self.output_coord = ["Azimuth", "Radius"]
+            self.output_unit = self.parameters['u']
 
     def apply(self, data, backward=0):
-        pass
+        if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
+            out = copy.deepcopy(data)
+            d = copy.deepcopy(data)
+
+            d[0:2] -= self.parameters['origin'][0:2]
+            d0 = d[0]
+            d1 = d[1]
+
+            out[0] = (np.arctan2(-d1, d0) % (2 * np.pi)) * self._argunit
+            if self.parameters['r0'] is not None:
+                out[1] = 0.5 * np.log((d1 * d1 + d0 * d0) / (self.parameters['r0'] * self.parameters['r0']))
+            else:
+                out[1] = np.sqrt(d1 * d1 + d0 * d0)
+
+            return out
+        else:
+            d0 = copy.deepcopy(data[0])
+            d1 = copy.deepcopy(self.__dummy(data[0], [0, 2]))
+            out = copy.deepcopy(data)
+
+            d0 /= self._argunit
+            # need to fix the line below, needs to create a 2x2 matrix.
+            out[0:2] = np.column_stack((np.cos(d0), -np.sin(d0)))
+            print(f"out[0:2]: {out[0:2]}")
+            if self.parameters['r0'] is not None:
+                out[0:2] *= self.parameters['r0'] * np.exp(d1)
+            else:
+                out[0:2] *= d1
+            out[0:2] += self.parameters['origin'][0:2]
+
+            return out
+
+    def __dummy(self, data, shape):
+        if type(data) is np.ndarray:
+            return np.ones((shape[0] + 1, shape[1]), dtype=np.float64) * data[:, np.newaxis]
+        else:
+            return np.ones((shape[0] + 1, shape[1]), dtype=np.float64) * data
