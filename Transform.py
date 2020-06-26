@@ -47,6 +47,7 @@ class Transform(ABC):
         return self.apply(data, backward=1)
 
     def map(self, data=None, template=None, pdl=None, opts=None):
+
         pass
 
     def match(self, pdl, opts=None):
@@ -103,10 +104,10 @@ class t_identity(Transform):
     Return Copy of OG data with apply
     """
 
-    def __init__(self, input_coord=None, input_unit=None, output_coord=None,
+    def __init__(self, name="Identity", input_coord=None, input_unit=None, output_coord=None,
                  output_unit=None, parameters=None,
                  reverse_flag=None, input_dim=0, output_dim=0):
-        super().__init__("identity", input_coord=input_coord, input_unit=input_unit, output_coord=output_coord,
+        super().__init__(name=name, input_coord=input_coord, input_unit=input_unit, output_coord=output_coord,
                          output_unit=output_unit, parameters=parameters,
                          reverse_flag=reverse_flag, input_dim=input_dim, output_dim=output_dim)
 
@@ -341,17 +342,15 @@ class t_radial(Transform):
             return out
         else:
             d0 = copy.deepcopy(data[0])
-            d1 = copy.deepcopy(self.__dummy(data[0], [0, 2]))
+            d1 = copy.deepcopy(self.__dummy(data[1], [0, 2]))
             out = copy.deepcopy(data)
 
             d0 /= self._argunit
-            # need to fix the line below, needs to create a 2x2 matrix.
-            out[0:2] = np.column_stack((np.cos(d0), -np.sin(d0)))
-            print(f"out[0:2]: {out[0:2]}")
+            out[0:2] = np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1])))
             if self.parameters['r0'] is not None:
-                out[0:2] *= self.parameters['r0'] * np.exp(d1)
+                out[0:2] *= self.parameters['r0'] * np.exp(d1[0])
             else:
-                out[0:2] *= d1
+                out[0:2] *= d1[0]
             out[0:2] += self.parameters['origin'][0:2]
 
             return out

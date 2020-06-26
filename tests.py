@@ -154,16 +154,24 @@ class TestRadial(unittest.TestCase):
     t_rad2 = Transform.t_radial(name='t_rad2', input_coord=['input', 'coord'], input_unit=units.meter,
                                 output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
                                 reverse_flag=0)
+    params = {'direct': None, 'r0': 2.5, 'origin': np.array((0, 0, 0)), 'u': 'radians'}
+    t_rad3 = Transform.t_radial(name='t_rad3', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                reverse_flag=0)
+    params = {'direct': None, 'r0': None, 'origin': np.array((0, 0, 0)), 'u': 'degrees'}
+    t_rad4 = Transform.t_radial(name='t_rad4', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                reverse_flag=0)
 
     def test_basic(self):
         data_out = self.t_rad1.apply(self.data)
-        print(data_out)
+        # print(data_out)
         self.assertAlmostEqual(data_out[0], 5.1760366)
         self.assertAlmostEqual(data_out[1], 2.236068)
         self.assertAlmostEqual(data_out[2], 3)
 
         data_out = self.t_rad1.apply(self.data, backward=1)
-        print(f"inverted: {data_out}")
+        # print(f"inverted: {data_out}")
         self.assertAlmostEqual(data_out[0], 1.0806046)
         self.assertAlmostEqual(data_out[1], -1.682942)
         self.assertAlmostEqual(data_out[2], 3)
@@ -171,9 +179,38 @@ class TestRadial(unittest.TestCase):
 
     def test_origin(self):
         data_out = self.t_rad2.apply(self.data)
-        print(data_out)
+        # print(data_out)
         self.assertAlmostEqual(data_out[0], 5.0341395)
         self.assertAlmostEqual(data_out[1], 1.5811388)
+        self.assertAlmostEqual(data_out[2], 3)
+        data_out = self.t_rad2.apply(self.data, backward=1)
+        # print(f"origin reversed: {data_out}")
+        self.assertAlmostEqual(data_out[0], 1.5806046)
+        self.assertAlmostEqual(data_out[1], -1.182942)
+        self.assertAlmostEqual(data_out[2], 3)
+
+    def test_r0(self):
+        data_out = self.t_rad3.apply(self.data)
+        # print(f"r0 data: {data_out}")
+        self.assertAlmostEqual(data_out[0], 5.1760366)
+        self.assertAlmostEqual(data_out[1], -0.11157178)
+        self.assertAlmostEqual(data_out[2], 3)
+        data_out = self.t_rad3.apply(self.data, backward=1)
+        # print(f"r0 invert data: {data_out}")
+        self.assertAlmostEqual(data_out[0], 9.9808101)
+        self.assertAlmostEqual(data_out[1], -15.5441907, places=5)
+        self.assertAlmostEqual(data_out[2], 3)
+
+    def test_degree(self):
+        data_out = self.t_rad4.apply(self.data)
+        # print(f"degree: {data_out}")
+        self.assertAlmostEqual(data_out[0], 296.56505, places=5)
+        self.assertAlmostEqual(data_out[1], 2.236068, places=5)
+        self.assertAlmostEqual(data_out[2], 3)
+        data_out = self.t_rad4.apply(self.data, backward=1)
+        # print(f"degree invert: {data_out}")
+        self.assertAlmostEqual(data_out[0], 1.9996954)
+        self.assertAlmostEqual(data_out[1], -0.034904813)
         self.assertAlmostEqual(data_out[2], 3)
 
 
