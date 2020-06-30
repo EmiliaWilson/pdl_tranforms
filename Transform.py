@@ -64,6 +64,50 @@ class Transform(ABC):
 
         return return_dict
 
+    def __ndcoords(*dims):
+        print(type(dims[0]) is tuple)
+        if type(dims[0]) is tuple:
+            print("I am here")
+            test_ndindex = np.ndindex(dims[0])
+        elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
+            test_ndindex = np.ndindex(tuple(dims[0]))
+        else:
+            test_ndindex = np.ndindex(dims)
+
+        end_flag = 1
+        first_loop = 1
+        out = None
+        while end_flag:
+            try:
+                if first_loop == 1:
+                    arr1 = np.asarray(test_ndindex.next())
+                    arr2 = np.asarray(test_ndindex.next())
+                    out = np.stack((arr1, arr2))
+                    first_loop = 0
+
+                arr = np.asarray(test_ndindex.next())
+                out = np.vstack((out, arr))
+            except:
+                end_flag = 0
+
+        if out is None:
+            print("out is none")
+            return None
+        else:
+            out = np.fliplr(out)
+            # print(f"dims: {dims}, type: {type(dims)}")
+            if type(dims[0]) is tuple:
+                reshape_dim = list(dims[0])
+                reshape_dim.append(len(dims[0]))
+            elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
+                reshape_dim = list(dims[0])
+                reshape_dim.append(len(dims[0]))
+            else:
+                reshape_dim = list(dims)
+                reshape_dim.append(len(dims))
+            out = out.reshape(reshape_dim)
+            return out
+
 
 # f(g(h(x))) == composition([h, g, f]) or composition([f, g, h])
 # look at function composition in python to find standard but it seems like second is more common.
