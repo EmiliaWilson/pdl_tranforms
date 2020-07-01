@@ -47,6 +47,13 @@ class Transform(ABC):
         return self.apply(data, backward=1)
 
     def map(self, data=None, template=None, pdl=None, opts=None):
+        self.output_dim = template
+        out = np.empty(shape=self.output_dim,dtype=np.float64)
+        dd = out.shape()
+        ndc = self.__ndcoords(dd)
+        idx = self.apply(ndc, backward=1)
+
+        x = data->
 
         pass
 
@@ -67,7 +74,7 @@ class Transform(ABC):
     def __ndcoords(*dims):
         print(type(dims[0]) is tuple)
         if type(dims[0]) is tuple:
-            print("I am here")
+
             test_ndindex = np.ndindex(dims[0])
         elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
             test_ndindex = np.ndindex(tuple(dims[0]))
