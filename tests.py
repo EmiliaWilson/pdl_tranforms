@@ -214,5 +214,67 @@ class TestRadial(unittest.TestCase):
         self.assertAlmostEqual(data_out[2], 3)
 
 
+class TestMap(unittest.TestCase):
+    def test_linear(self):
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
+        image_data = hdul[0].data * 1e10
+        params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
+        t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        t_lin.map(data=image_data)
+        self.assertTrue(True)
+    #     output_dim = image_data.shape
+    #     out = np.empty(shape=output_dim, dtype=np.float64)
+    #     dd = out.shape
+    #     print(type(dd), dd)
+    #     ndc = self.ndcoords(5, 5)
+    #     self.assertTrue(True)
+    #
+    # def ndcoords(*dims):
+    #     if type(dims[0]) is tuple:
+    #         test_ndindex = np.ndindex(dims[0])
+    #     elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
+    #         test_ndindex = np.ndindex(tuple(dims[0]))
+    #     else:
+    #         test_ndindex = np.ndindex(dims)
+    #
+    #     end_flag = 1
+    #     first_loop = 1
+    #     out = None
+    #     while end_flag:
+    #         try:
+    #             if first_loop == 1:
+    #                 arr1 = np.asarray(test_ndindex.next())
+    #                 arr2 = np.asarray(test_ndindex.next())
+    #                 out = np.stack((arr1, arr2))
+    #                 first_loop = 0
+    #
+    #             arr = np.asarray(test_ndindex.next())
+    #             out = np.vstack((out, arr))
+    #         except:
+    #             end_flag = 0
+    #
+    #     if out is None:
+    #         print("out is none")
+    #         return None
+    #     else:
+    #         out = np.fliplr(out)
+    #         # print(f"dims: {dims}, type: {type(dims)}")
+    #         if type(dims[0]) is tuple:
+    #             reshape_dim = list(dims[0])
+    #             reshape_dim.append(len(dims[0]))
+    #         elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
+    #             reshape_dim = list(dims[0])
+    #             reshape_dim.append(len(dims[0]))
+    #         else:
+    #             reshape_dim = list(dims)
+    #             reshape_dim.append(len(dims))
+    #         out = out.reshape(reshape_dim)
+    #         return out
+
+
 if __name__ == '__main__':
     unittest.main()

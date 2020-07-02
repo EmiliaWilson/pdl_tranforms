@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import astropy.units as units
 from abc import ABC, abstractmethod
 from scipy.spatial.transform import Rotation as R
+from scipy.interpolate import interpnd
 import copy
 
 
@@ -47,15 +47,18 @@ class Transform(ABC):
         return self.apply(data, backward=1)
 
     def map(self, data=None, template=None, pdl=None, opts=None):
-        self.output_dim = template
-        out = np.empty(shape=self.output_dim,dtype=np.float64)
-        dd = out.shape()
-        ndc = self.__ndcoords(dd)
+        # if template is not None:
+        #     self.output_dim = template
+        # else:
+        self.output_dim = data.shape
+        out = np.empty(shape=self.output_dim, dtype=np.float64)
+        dd = out.shape
+        ndc = self.__ndcoords(int(512), int(512))
         idx = self.apply(ndc, backward=1)
 
-        x = data->
-
-        pass
+        x = interpnd(points=idx, values=data, method='linear')
+        out[:] = x
+        return out
 
     def match(self, pdl, opts=None):
         return self.map(pdl=pdl, opts=opts)
@@ -72,9 +75,8 @@ class Transform(ABC):
         return return_dict
 
     def __ndcoords(*dims):
-        print(type(dims[0]) is tuple)
+        # print(type(dims[0]) is tuple)
         if type(dims[0]) is tuple:
-
             test_ndindex = np.ndindex(dims[0])
         elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
             test_ndindex = np.ndindex(tuple(dims[0]))
