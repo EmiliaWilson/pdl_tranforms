@@ -3,8 +3,25 @@ import pandas as pd
 import astropy.units as units
 from abc import ABC, abstractmethod
 from scipy.spatial.transform import Rotation as R
-from scipy.interpolate import interpnd
+from scipy.interpolate import interpn
+from scipy.interpolate import RegularGridInterpolator
 import copy
+
+
+def ndcoords(*dims):
+    grid_size = []
+    if type(dims[0]) is tuple or type(dims[0]) is list or type(dims[0]) is np.ndarray:
+        for i in range(len(dims[0])):
+            grid_size.append(range(dims[0][i]))
+    else:
+        for i in range(len(dims)):
+            print(type(dims[i]), dims[i])
+            grid_size.append(range(dims[i]))
+
+    out = np.mgrid[grid_size].transpose()
+    # arr = arr.astype('float64')
+    out = out.astype('float64')
+    return out
 
 
 class Transform(ABC):
@@ -53,11 +70,13 @@ class Transform(ABC):
         self.output_dim = data.shape
         out = np.empty(shape=self.output_dim, dtype=np.float64)
         dd = out.shape
-        ndc = self.__ndcoords(int(512), int(512))
+        ndc = ndcoords(dd)
+        ndc = ndc.reshape((ndc.shape[0] * ndc.shape[1], ndc.shape[2]))
         idx = self.apply(ndc, backward=1)
-
-        x = interpnd(points=idx, values=data, method='linear')
-        out[:] = x
+        pixel_grid = [np.arange(x) for x in data.shape]
+        x = interpn(points=pixel_grid, values=data, method='linear', xi=idx.flatten(), bounds_error=False,
+                    fill_value=0)
+        out[:] = x.reshape(self.output_dim)
         return out
 
     def match(self, pdl, opts=None):
@@ -73,49 +92,6 @@ class Transform(ABC):
                     return_dict[k] = uopts[r]
 
         return return_dict
-
-    def __ndcoords(*dims):
-        # print(type(dims[0]) is tuple)
-        if type(dims[0]) is tuple:
-            test_ndindex = np.ndindex(dims[0])
-        elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
-            test_ndindex = np.ndindex(tuple(dims[0]))
-        else:
-            test_ndindex = np.ndindex(dims)
-
-        end_flag = 1
-        first_loop = 1
-        out = None
-        while end_flag:
-            try:
-                if first_loop == 1:
-                    arr1 = np.asarray(test_ndindex.next())
-                    arr2 = np.asarray(test_ndindex.next())
-                    out = np.stack((arr1, arr2))
-                    first_loop = 0
-
-                arr = np.asarray(test_ndindex.next())
-                out = np.vstack((out, arr))
-            except:
-                end_flag = 0
-
-        if out is None:
-            print("out is none")
-            return None
-        else:
-            out = np.fliplr(out)
-            # print(f"dims: {dims}, type: {type(dims)}")
-            if type(dims[0]) is tuple:
-                reshape_dim = list(dims[0])
-                reshape_dim.append(len(dims[0]))
-            elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
-                reshape_dim = list(dims[0])
-                reshape_dim.append(len(dims[0]))
-            else:
-                reshape_dim = list(dims)
-                reshape_dim.append(len(dims))
-            out = out.reshape(reshape_dim)
-            return out
 
 
 # f(g(h(x))) == composition([h, g, f]) or composition([f, g, h])
@@ -285,39 +261,62 @@ class t_linear(Transform):
             self._non_invertible = 1
 
     def apply(self, data, backward=0):
+        # print(f"data size: {data[0].size}")'
+        og_shape = data.shape
+        if data.ndim == 1:
+            data = data.reshape((1, 1, data.size))
+        else:
+            data = data.reshape((data.shape[0], 1, data[0].size))
+        # print(data.shape)
         if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             d = self.parameters['matrix'].shape[0]
-            if d > np.shape(data)[0]:
-                raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
+            if d > np.shape(data)[2]:
+                raise ValueError(f"Linear transform: transform is {np.shape(data)[2]} data only ")
 
             if self.parameters['pre'] is not None:
-                x = copy.deepcopy(data[0:d]) + self.parameters['pre']
+                x = copy.deepcopy(data[..., 0:d]) + self.parameters['pre']
             else:
-                x = copy.deepcopy(data[0:d])
+                x = copy.deepcopy(data[..., 0:d])
 
             out = copy.deepcopy(data)
+            # print(f"out shape: {out.shape}")
             if self.parameters['post'] is not None:
-                out[0:d] = np.matmul(x, self.parameters['matrix']) + self.parameters['post']
+                out[..., 0:d] = np.matmul(x, self.parameters['matrix']) + self.parameters['post']
             else:
-                out[0:d] = np.matmul(x, self.parameters['matrix'])
+                out[..., 0:d] = np.matmul(x, self.parameters['matrix'])
+                # temp = np.matmul(x[np.newaxis, ...], self.parameters['matrix'])
+                # print(np.squeeze(temp, axis=0).shape)
+                # out[0:d] = np.squeeze(temp, axis=0)
+                # temp = []
+                # print(x.shape)
+                # for x_len in range(x.shape[0]):
+                #     # print(x[x_len])
+                #     temp.append(np.matmul(x[x_len], self.parameters['matrix']))
+                #     print(f"temp: {temp}")
+
+                # print(f"temp: {temp}")
+
+            out = out.reshape(og_shape)
             return out
 
         elif not self._non_invertible:
+
             d = self.inv.shape[0]
-            if d > np.shape(data)[0]:
-                raise ValueError(f"Linear transform: transform is {np.shape(data)[0]} data only ")
+            if d > np.shape(data)[2]:
+                raise ValueError(f"Linear transform: transform is {np.shape(data)[2]} data only ")
 
             if self.parameters['pre'] is not None:
-                x = copy.deepcopy(data[0:d]) + self.parameters['pre']
+                x = copy.deepcopy(data[..., 0:d]) + self.parameters['pre']
             else:
-                x = copy.deepcopy(data[0:d])
+                x = copy.deepcopy(data[..., 0:d])
 
             out = copy.deepcopy(data)
             if self.parameters['post'] is not None:
-                out[0:d] = np.matmul(x, self.inv) + self.parameters['post']
+                out[..., 0:d] = np.matmul(x, self.inv) + self.parameters['post']
             else:
-                out[0:d] = np.matmul(x, self.inv)
+                out[..., 0:d] = np.matmul(x, self.inv)
 
+            out = out.reshape(og_shape)
             return out
         else:
             print("trying to invert a non-invertible matrix.")

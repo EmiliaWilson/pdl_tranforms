@@ -4,6 +4,20 @@ import Transform
 import unittest
 
 
+def ndcoords(*dims):
+    grid_size = []
+    if type(dims[0]) is tuple or type(dims[0]) is list or type(dims[0]) is np.ndarray:
+        for i in range(len(dims[0])):
+            grid_size.append(range(dims[0][i]))
+    else:
+        for i in range(len(dims)):
+            print(type(dims[i]), dims[i])
+            grid_size.append(range(dims[i]))
+
+    out = np.mgrid[grid_size].transpose()
+    return out
+
+
 class TestLinear(unittest.TestCase):
 
     def test_matrix(self):
@@ -45,6 +59,19 @@ class TestLinear(unittest.TestCase):
         self.assertAlmostEqual(data_out[0], 2.1906707)
         self.assertAlmostEqual(data_out[1], -0.44828774)
         self.assertAlmostEqual(data_out[2], 3)
+
+        data_2d = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+
+        # print(f"data_2d: {data_2d}")
+        params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
+        t_lin_2d = Transform.t_linear(name='t_lin2d', input_coord=['input', 'coord'], input_unit=units.meter,
+                                      output_coord=['output', 'coord'],
+                                      output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        data_out = t_lin_2d.apply(data=data_2d)
+        # self.assertAlmostEqual(data_out[0], [0, 0])
+        # self.assertAlmostEqual(data_out[1], -0.44828774)
+        # self.assertAlmostEqual(data_out[2], 3)
+        # print(f"out: {out}")
 
     def test_reverse_flag(self):
         data = np.array((1, 2, 3), dtype=np.float64)
@@ -218,62 +245,61 @@ class TestMap(unittest.TestCase):
     def test_linear(self):
         from astropy.io import fits
         import matplotlib.pyplot as plt
+
+        from scipy.interpolate import interpn
+
         hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
         image_data = hdul[0].data * 1e10
-        params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
+        plt.figure()
+        plt.imshow(np.flipud(np.fliplr(image_data)))
+        plt.show(block=False)
+        print(image_data.shape)
+
+        params = {'matrix': np.array(([.5, 2], [.5, 0])), 'rot': None, 'scale': None, 'pre': None, 'post': None, 'dims': None}
         t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
-        t_lin.map(data=image_data)
+        params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
+        t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                    output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                    reverse_flag=0)
+        # print(image_data)
+        map_out = t_rad1.map(data=image_data)
+        plt.figure()
+        plt.imshow(map_out)
+        plt.show(block=False)
+        plt.show()
+
         self.assertTrue(True)
-    #     output_dim = image_data.shape
-    #     out = np.empty(shape=output_dim, dtype=np.float64)
-    #     dd = out.shape
-    #     print(type(dd), dd)
-    #     ndc = self.ndcoords(5, 5)
-    #     self.assertTrue(True)
-    #
-    # def ndcoords(*dims):
-    #     if type(dims[0]) is tuple:
-    #         test_ndindex = np.ndindex(dims[0])
-    #     elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
-    #         test_ndindex = np.ndindex(tuple(dims[0]))
-    #     else:
-    #         test_ndindex = np.ndindex(dims)
-    #
-    #     end_flag = 1
-    #     first_loop = 1
-    #     out = None
-    #     while end_flag:
-    #         try:
-    #             if first_loop == 1:
-    #                 arr1 = np.asarray(test_ndindex.next())
-    #                 arr2 = np.asarray(test_ndindex.next())
-    #                 out = np.stack((arr1, arr2))
-    #                 first_loop = 0
-    #
-    #             arr = np.asarray(test_ndindex.next())
-    #             out = np.vstack((out, arr))
-    #         except:
-    #             end_flag = 0
-    #
-    #     if out is None:
-    #         print("out is none")
-    #         return None
-    #     else:
-    #         out = np.fliplr(out)
-    #         # print(f"dims: {dims}, type: {type(dims)}")
-    #         if type(dims[0]) is tuple:
-    #             reshape_dim = list(dims[0])
-    #             reshape_dim.append(len(dims[0]))
-    #         elif type(dims[0]) is list or type(dims[0]) is np.ndarray:
-    #             reshape_dim = list(dims[0])
-    #             reshape_dim.append(len(dims[0]))
-    #         else:
-    #             reshape_dim = list(dims)
-    #             reshape_dim.append(len(dims))
-    #         out = out.reshape(reshape_dim)
-    #         return out
+        # output_dim = image_data.shape
+        # out = np.empty(shape=output_dim, dtype=np.float64)
+        # dd = out.shape
+        # # print(type(dd), dd)
+        # ndc = ndcoords(dd)
+        # # with np.printoptions(threshold=np.inf):
+        # #     print(ndc.flatten()[0:100])
+        #
+        # idx = t_lin.apply(ndc, backward=1)
+        # pts = [np.asarray(range(2048)), np.asarray(range(2048))]
+        # pixelGrid = [np.arange(x) for x in image_data.shape]
+        # print(pixelGrid)
+        # x = interpn(points=pixelGrid, values=image_data, method='linear', xi=ndc.flatten())
+        # print(np.all(x))
+        # self.assertTrue(True)
+
+
+class TestNDCoords(unittest.TestCase):
+    def test_apply(self):
+        ndc = ndcoords(3, 3)
+        print(ndc)
+        params = {'matrix': None, 'rot': 90, 'scale': 3, 'pre': None, 'post': None, 'dims': 2}
+        t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        print(ndc.shape)
+        ndc = ndc.reshape((ndc.shape[0] * ndc.shape[1], ndc.shape[2]))
+        print(t_lin.apply(ndc))
+        self.assertTrue(True)
 
 
 if __name__ == '__main__':
