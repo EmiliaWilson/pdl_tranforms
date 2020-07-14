@@ -14,7 +14,9 @@ def ndcoords(*dims):
             print(type(dims[i]), dims[i])
             grid_size.append(range(dims[i]))
 
-    out = np.mgrid[grid_size].transpose()
+    out = np.mgrid[grid_size]
+
+    out = out.astype('float64').transpose()
     return out
 
 
@@ -71,7 +73,7 @@ class TestLinear(unittest.TestCase):
         # self.assertAlmostEqual(data_out[0], [0, 0])
         # self.assertAlmostEqual(data_out[1], -0.44828774)
         # self.assertAlmostEqual(data_out[2], 3)
-        # print(f"out: {out}")
+        print(f"out: {data_out}")
 
     def test_reverse_flag(self):
         data = np.array((1, 2, 3), dtype=np.float64)
@@ -112,6 +114,14 @@ class TestLinear(unittest.TestCase):
         self.assertAlmostEqual(data_out[1], 2.6456052)
         self.assertAlmostEqual(data_out[2], 24.478939, places=5)
 
+    def test_post_pre(self):
+        data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+        params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': None, 'post': np.array((0, 2000)), 'dims': 2}
+        t_lin = Transform.t_linear(name='t_lin5', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        print(t_lin.apply(data))
+        self.assertTrue(True)
 
 class TestCompose(unittest.TestCase):
     data = np.array((1, 2, 3), dtype=np.float64)
@@ -197,12 +207,17 @@ class TestRadial(unittest.TestCase):
         self.assertAlmostEqual(data_out[1], 2.236068)
         self.assertAlmostEqual(data_out[2], 3)
 
-        data_out = self.t_rad1.apply(self.data, backward=1)
-        # print(f"inverted: {data_out}")
-        self.assertAlmostEqual(data_out[0], 1.0806046)
-        self.assertAlmostEqual(data_out[1], -1.682942)
-        self.assertAlmostEqual(data_out[2], 3)
-        # self.assertTrue(True)
+        # data_out = self.t_rad1.apply(self.data, backward=1)
+        # # print(f"inverted: {data_out}")
+        # self.assertAlmostEqual(data_out[0], 1.0806046)
+        # self.assertAlmostEqual(data_out[1], -1.682942)
+        # self.assertAlmostEqual(data_out[2], 3)
+        # # self.assertTrue(True)
+
+        data_2d = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+        data_test = np.array((1, 0), dtype=np.float64)
+        data_out = self.t_rad1.apply(data_2d, backward=1)
+        print(data_out)
 
     def test_origin(self):
         data_out = self.t_rad2.apply(self.data)
@@ -242,6 +257,8 @@ class TestRadial(unittest.TestCase):
 
 
 class TestMap(unittest.TestCase):
+    # Autoscaling
+    # my rot is counter-clockwise
     def test_linear(self):
         from astropy.io import fits
         import matplotlib.pyplot as plt
@@ -249,13 +266,13 @@ class TestMap(unittest.TestCase):
         from scipy.interpolate import interpn
 
         hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
-        image_data = hdul[0].data * 1e10
+        image_data = hdul[0].data * 1e1
         plt.figure()
-        plt.imshow(np.flipud(np.fliplr(image_data)))
+        plt.imshow(image_data, origin='lower')
         plt.show(block=False)
         print(image_data.shape)
 
-        params = {'matrix': np.array(([.5, 2], [.5, 0])), 'rot': None, 'scale': None, 'pre': None, 'post': None, 'dims': None}
+        params = {'matrix': np.array(([1, 0], [0.5, 1])), 'rot': None, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
         t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
@@ -263,44 +280,51 @@ class TestMap(unittest.TestCase):
         t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
                                     output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
                                     reverse_flag=0)
-        # print(image_data)
-        map_out = t_rad1.map(data=image_data)
+        print(image_data)
+        map_out = t_lin.map(data=image_data)
         plt.figure()
-        plt.imshow(map_out)
+        plt.imshow(map_out, origin='lower')
         plt.show(block=False)
         plt.show()
 
-        self.assertTrue(True)
-        # output_dim = image_data.shape
-        # out = np.empty(shape=output_dim, dtype=np.float64)
-        # dd = out.shape
-        # # print(type(dd), dd)
-        # ndc = ndcoords(dd)
-        # # with np.printoptions(threshold=np.inf):
-        # #     print(ndc.flatten()[0:100])
-        #
-        # idx = t_lin.apply(ndc, backward=1)
-        # pts = [np.asarray(range(2048)), np.asarray(range(2048))]
-        # pixelGrid = [np.arange(x) for x in image_data.shape]
-        # print(pixelGrid)
-        # x = interpn(points=pixelGrid, values=image_data, method='linear', xi=ndc.flatten())
-        # print(np.all(x))
+        # self.assertTrue(True)
+        # data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+        # plt.figure()
+        # plt.scatter(x=data[:, 0], y=data[:, 1])
+        # data_out = t_lin.map(data)
+        # print(data_out[1, :])
+        # plt.scatter(x=data[0, :], y=data[1, :])
+        # plt.show()
+        # print(data_out)
         # self.assertTrue(True)
 
 
 class TestNDCoords(unittest.TestCase):
+    # we need to fix how it returns the transpose instead of the actual coord.
     def test_apply(self):
         ndc = ndcoords(3, 3)
-        print(ndc)
-        params = {'matrix': None, 'rot': 90, 'scale': 3, 'pre': None, 'post': None, 'dims': 2}
+        # print(ndc)
+        params = {'matrix': None, 'rot': 30, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
         t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
-        print(ndc.shape)
-        ndc = ndc.reshape((ndc.shape[0] * ndc.shape[1], ndc.shape[2]))
-        print(t_lin.apply(ndc))
+        # print(ndc)
+        # ndc = ndc.reshape((np.product(ndc.shape[:-1]), ndc.shape[-1]))
+        # data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+        print(f"apply: {t_lin.apply(ndc)}")
+        print(f"matmul: {np.matmul(ndc, t_lin.parameters['matrix'])}")
+
         self.assertTrue(True)
 
+    def test_error(self):
+        ndc = ndcoords(3, 3)
+        print(ndc.shape)
+        # print(ndc.transpose().shape)
+        # print(ndc[:, 2, 1])
+        print(ndc)
+        ndc_transpose = ndcoords(3, 3).transpose()
+        # print(ndc_transpose[:, 0, 1])
+        self.assertTrue(True)
 
 if __name__ == '__main__':
     unittest.main()

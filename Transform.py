@@ -18,9 +18,9 @@ def ndcoords(*dims):
             print(type(dims[i]), dims[i])
             grid_size.append(range(dims[i]))
 
-    out = np.mgrid[grid_size].transpose()
-    # arr = arr.astype('float64')
-    out = out.astype('float64')
+    out = np.mgrid[grid_size]
+
+    out = out.astype('float64').transpose()
     return out
 
 
@@ -71,13 +71,13 @@ class Transform(ABC):
         out = np.empty(shape=self.output_dim, dtype=np.float64)
         dd = out.shape
         ndc = ndcoords(dd)
-        ndc = ndc.reshape((ndc.shape[0] * ndc.shape[1], ndc.shape[2]))
+        # ndc = ndc.reshape((np.product(ndc.shape[:-1]), ndc.shape[-1]))
         idx = self.apply(ndc, backward=1)
         pixel_grid = [np.arange(x) for x in data.shape]
-        x = interpn(points=pixel_grid, values=data, method='linear', xi=idx.flatten(), bounds_error=False,
+        x = interpn(points=pixel_grid, values=data, method='linear', xi=idx,  bounds_error=False,
                     fill_value=0)
-        out[:] = x.reshape(self.output_dim)
-        return out
+        out[:] = x
+        return out.transpose()
 
     def match(self, pdl, opts=None):
         return self.map(pdl=pdl, opts=opts)
@@ -168,7 +168,7 @@ class t_linear(Transform):
         This provides a way to do, e.g., 3-D scaling: just set {s=<scale-factor>, dims=>3}> and you are on your way.
 
     """
-
+    # NEED TO BUG FIX POST AS ARRAY
     def __init__(self, input_coord, input_unit,
                  output_coord, output_unit, parameters, reverse_flag,
                  name='t_linear', input_dim=None,
@@ -224,6 +224,7 @@ class t_linear(Transform):
                 elif np.size(rot) == 3:
                     rotation = R.from_euler('xyz', [rot[0], rot[1], rot[2]], degrees=True)
                     rot_matrix = rotation.as_dcm()
+                    # rot_matrix = np.linalg.inv(rot_matrix)
                     self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot_matrix)
                 else:
                     raise ValueError("Transform.linear got a strange rot option -- giving up.")
@@ -231,11 +232,9 @@ class t_linear(Transform):
             elif rot != 0 and self.parameters['matrix'].shape[0] > 1:
                 theta = np.deg2rad(rot)
                 c, s = np.cos(theta), np.sin(theta)
-                if c < 1e-10:
-                    c = 0
-                if s < 1e-10:
-                    s = 0
-                rot_matrix = np.array(((c, -s), (s, c)))
+                rot_matrix = np.array(((c, s), (-s, c)))
+                # need to take the inverse of this matrix so it rotates the correct way.
+                # np.linalg.inv(rot_matrix)
                 self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot_matrix)
 
         # applying scaling. No matrix. Documentation
@@ -262,16 +261,17 @@ class t_linear(Transform):
 
     def apply(self, data, backward=0):
         # print(f"data size: {data[0].size}")'
-        og_shape = data.shape
-        if data.ndim == 1:
-            data = data.reshape((1, 1, data.size))
-        else:
-            data = data.reshape((data.shape[0], 1, data[0].size))
+        # og_shape = data.shape
+        # if data.ndim == 1:
+        #     data = data.reshape((1, 1, data.size))
+        # else:
+        #    data = data.reshape((data.shape[0], 1, data[0].size))
         # print(data.shape)
         if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             d = self.parameters['matrix'].shape[0]
-            if d > np.shape(data)[2]:
-                raise ValueError(f"Linear transform: transform is {np.shape(data)[2]} data only ")
+            print(data.shape)
+            if d > np.shape(data)[-1]:
+                raise ValueError(f"Linear transform: transform is {np.shape(data)[-1]} data only ")
 
             if self.parameters['pre'] is not None:
                 x = copy.deepcopy(data[..., 0:d]) + self.parameters['pre']
@@ -284,26 +284,15 @@ class t_linear(Transform):
                 out[..., 0:d] = np.matmul(x, self.parameters['matrix']) + self.parameters['post']
             else:
                 out[..., 0:d] = np.matmul(x, self.parameters['matrix'])
-                # temp = np.matmul(x[np.newaxis, ...], self.parameters['matrix'])
-                # print(np.squeeze(temp, axis=0).shape)
-                # out[0:d] = np.squeeze(temp, axis=0)
-                # temp = []
-                # print(x.shape)
-                # for x_len in range(x.shape[0]):
-                #     # print(x[x_len])
-                #     temp.append(np.matmul(x[x_len], self.parameters['matrix']))
-                #     print(f"temp: {temp}")
 
-                # print(f"temp: {temp}")
-
-            out = out.reshape(og_shape)
+            # out = out.reshape(og_shape)
             return out
 
         elif not self._non_invertible:
 
             d = self.inv.shape[0]
-            if d > np.shape(data)[2]:
-                raise ValueError(f"Linear transform: transform is {np.shape(data)[2]} data only ")
+            if d > np.shape(data)[-1]:
+                raise ValueError(f"Linear transform: transform is {np.shape(data)[-1]} data only ")
 
             if self.parameters['pre'] is not None:
                 x = copy.deepcopy(data[..., 0:d]) + self.parameters['pre']
@@ -316,7 +305,6 @@ class t_linear(Transform):
             else:
                 out[..., 0:d] = np.matmul(x, self.inv)
 
-            out = out.reshape(og_shape)
             return out
         else:
             print("trying to invert a non-invertible matrix.")
@@ -377,34 +365,51 @@ class t_radial(Transform):
             self.output_unit = self.parameters['u']
 
     def apply(self, data, backward=0):
+        og_shape = data.shape
+        if data.ndim == 1:
+            data = data.reshape((1, 1, data.size))
+        else:
+            data = data.reshape((data.shape[0], 1, data[0].size))
         if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             out = copy.deepcopy(data)
             d = copy.deepcopy(data)
 
-            d[0:2] -= self.parameters['origin'][0:2]
-            d0 = d[0]
-            d1 = d[1]
+            d[..., 0:2] -= self.parameters['origin'][0:2]
+            d0 = d[..., 0]
+            d1 = d[..., 1]
 
-            out[0] = (np.arctan2(-d1, d0) % (2 * np.pi)) * self._argunit
+            out[..., 0] = (np.arctan2(-d1, d0) % (2 * np.pi)) * self._argunit
             if self.parameters['r0'] is not None:
-                out[1] = 0.5 * np.log((d1 * d1 + d0 * d0) / (self.parameters['r0'] * self.parameters['r0']))
+                out[..., 1] = 0.5 * np.log((d1 * d1 + d0 * d0) / (self.parameters['r0'] * self.parameters['r0']))
             else:
-                out[1] = np.sqrt(d1 * d1 + d0 * d0)
+                out[..., 1] = np.sqrt(d1 * d1 + d0 * d0)
 
+            out = out.reshape(og_shape)
             return out
         else:
-            d0 = copy.deepcopy(data[0])
-            d1 = copy.deepcopy(self.__dummy(data[1], [0, 2]))
+            d0 = copy.deepcopy(data[..., 0])
+            d1 = copy.deepcopy(self.__dummy(data[..., 1], [0, 2]))
             out = copy.deepcopy(data)
 
             d0 /= self._argunit
-            out[0:2] = np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1])))
+            # print(np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1]))))
+            # print(np.cos(d0)[..., 0])
+            # print(-np.sin(d0)[..., 0])
+            # print(f"d1 {d1[0]}")
+            tmp = np.empty((4, 1, 2))
+            tmp[..., 0] = np.cos(d0)
+            tmp[..., 1] = -np.sin(d0)
+            # print(f"tmp: {tmp}")
+            # out[..., 0:2] = np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1])))
+            out[..., 0:2] = tmp
+            # print(f"out: {out[..., 0:2]}")
             if self.parameters['r0'] is not None:
-                out[0:2] *= self.parameters['r0'] * np.exp(d1[0])
+                out[..., 0:2] *= self.parameters['r0'] * np.exp(d1)
             else:
-                out[0:2] *= d1[0]
-            out[0:2] += self.parameters['origin'][0:2]
+                out[..., 0:2] *= d1
+            out[..., 0:2] += self.parameters['origin'][0:2]
 
+            out = out.reshape(og_shape)
             return out
 
     def __dummy(self, data, shape):
