@@ -20,6 +20,37 @@ def ndcoords(*dims):
     return out
 
 
+def dummy(data, dim):
+    data_shape = list(data.shape)
+    if dim[0] < -(len(data_shape)+1):
+        raise ValueError("For safety, pos < -(data.ndims+1) forbidden in dummy")
+    elif dim[0] < 0:
+        if dim[0] == -1:
+            data_shape.append(dim[1])
+        else:
+            data_shape.insert(dim[0] + len(data_shape) + 1, dim[1])
+    elif dim[0] > len(data_shape) - 1:
+        while len(data_shape) - 1 < dim[0] - 1:
+            data_shape.append(1)
+        data_shape.insert(dim[0], dim[1])
+    else:
+        data_shape.insert(dim[0], dim[1])
+    new_data = np.ones(data_shape, dtype=np.float64)
+    if is_broadcastable(new_data.shape, data[..., np.newaxis].shape):
+        return new_data * data[..., np.newaxis]
+    else:
+        return new_data * data
+
+
+def is_broadcastable(shp1, shp2):
+    for a, b in zip(shp1[::-1], shp2[::-1]):
+        if a == 1 or b == 1 or a == b:
+            pass
+        else:
+            return False
+    return True
+
+
 class TestLinear(unittest.TestCase):
 
     def test_matrix(self):
@@ -122,6 +153,7 @@ class TestLinear(unittest.TestCase):
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
         print(t_lin.apply(data))
         self.assertTrue(True)
+
 
 class TestCompose(unittest.TestCase):
     data = np.array((1, 2, 3), dtype=np.float64)
@@ -272,7 +304,8 @@ class TestMap(unittest.TestCase):
         plt.show(block=False)
         print(image_data.shape)
 
-        params = {'matrix': np.array(([1, 0], [0.5, 1])), 'rot': None, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
+        params = {'matrix': np.array(([1, 0], [0.5, 1])), 'rot': None, 'scale': None, 'pre': None, 'post': None,
+                  'dims': 2}
         t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
@@ -287,17 +320,6 @@ class TestMap(unittest.TestCase):
         plt.show(block=False)
         plt.show()
 
-        # self.assertTrue(True)
-        # data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
-        # plt.figure()
-        # plt.scatter(x=data[:, 0], y=data[:, 1])
-        # data_out = t_lin.map(data)
-        # print(data_out[1, :])
-        # plt.scatter(x=data[0, :], y=data[1, :])
-        # plt.show()
-        # print(data_out)
-        # self.assertTrue(True)
-
 
 class TestNDCoords(unittest.TestCase):
     # we need to fix how it returns the transpose instead of the actual coord.
@@ -308,23 +330,31 @@ class TestNDCoords(unittest.TestCase):
         t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
+        t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                    output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                    reverse_flag=0)
         # print(ndc)
         # ndc = ndc.reshape((np.product(ndc.shape[:-1]), ndc.shape[-1]))
-        # data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
-        print(f"apply: {t_lin.apply(ndc)}")
-        print(f"matmul: {np.matmul(ndc, t_lin.parameters['matrix'])}")
+        data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
+        print(f"apply: {t_rad1.apply(ndc, backward=1)}")
+        # print(f"matmul: {np.matmul(ndc, t_lin.parameters['matrix'])}")
 
         self.assertTrue(True)
 
     def test_error(self):
-        ndc = ndcoords(3, 3)
-        print(ndc.shape)
-        # print(ndc.transpose().shape)
-        # print(ndc[:, 2, 1])
-        print(ndc)
-        ndc_transpose = ndcoords(3, 3).transpose()
-        # print(ndc_transpose[:, 0, 1])
+        import copy
+        data = ndcoords(3, 3)
+        d0 = copy.deepcopy(data[..., 0])
+        d1 = copy.deepcopy(dummy(data[..., 1], [0, 2]))
+        out = copy.deepcopy(data)
+        test = np.array(([0, 1, 2, 3], [4, 5, 6, 7]))
+
+        print(dummy(test, np.array((1, 3))))
+        print(dummy(test, np.array((1, 3))).shape)
+
         self.assertTrue(True)
+
 
 if __name__ == '__main__':
     unittest.main()

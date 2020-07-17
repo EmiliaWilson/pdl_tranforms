@@ -24,6 +24,30 @@ def ndcoords(*dims):
     return out
 
 
+def dummy(data, dim):
+    data_shape = list(data.shape)
+    if dim[0] < -len(data_shape):
+        raise ValueError("For safety, pos < -(data.ndims+1) forbidden in dummy")
+    elif dim[0] > len(data_shape) - 1:
+        while len(data_shape) - 1 < dim[0] - 1:
+            data_shape.append(1)
+    data_shape.insert(dim[0], dim[1])
+    new_data = np.ones(data_shape, dtype=np.float64)
+    if is_broadcastable(new_data.shape, data[..., np.newaxis].shape):
+        return new_data * data[..., np.newaxis]
+    else:
+        return new_data * data
+
+
+def is_broadcastable(shp1, shp2):
+    for a, b in zip(shp1[::-1], shp2[::-1]):
+        if a == 1 or b == 1 or a == b:
+            pass
+        else:
+            return False
+    return True
+
+
 class Transform(ABC):
 
     def __init__(self, name, input_coord, input_unit,
@@ -74,7 +98,7 @@ class Transform(ABC):
         # ndc = ndc.reshape((np.product(ndc.shape[:-1]), ndc.shape[-1]))
         idx = self.apply(ndc, backward=1)
         pixel_grid = [np.arange(x) for x in data.shape]
-        x = interpn(points=pixel_grid, values=data, method='linear', xi=idx,  bounds_error=False,
+        x = interpn(points=pixel_grid, values=data, method='linear', xi=idx, bounds_error=False,
                     fill_value=0)
         out[:] = x
         return out.transpose()
@@ -168,6 +192,7 @@ class t_linear(Transform):
         This provides a way to do, e.g., 3-D scaling: just set {s=<scale-factor>, dims=>3}> and you are on your way.
 
     """
+
     # NEED TO BUG FIX POST AS ARRAY
     def __init__(self, input_coord, input_unit,
                  output_coord, output_unit, parameters, reverse_flag,
@@ -365,11 +390,12 @@ class t_radial(Transform):
             self.output_unit = self.parameters['u']
 
     def apply(self, data, backward=0):
-        og_shape = data.shape
-        if data.ndim == 1:
-            data = data.reshape((1, 1, data.size))
-        else:
-            data = data.reshape((data.shape[0], 1, data[0].size))
+        # og_shape = data.shape
+        # if data.ndim == 1:
+        #     data = data.reshape((1, 1, data.size))
+        # else:
+        #     data = data.reshape((data.shape[0], 1, data[0].size))
+
         if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             out = copy.deepcopy(data)
             d = copy.deepcopy(data)
@@ -384,11 +410,10 @@ class t_radial(Transform):
             else:
                 out[..., 1] = np.sqrt(d1 * d1 + d0 * d0)
 
-            out = out.reshape(og_shape)
             return out
         else:
             d0 = copy.deepcopy(data[..., 0])
-            d1 = copy.deepcopy(self.__dummy(data[..., 1], [0, 2]))
+            d1 = copy.deepcopy(dummy(data[..., 1], [0, 2]))
             out = copy.deepcopy(data)
 
             d0 /= self._argunit
@@ -396,12 +421,9 @@ class t_radial(Transform):
             # print(np.cos(d0)[..., 0])
             # print(-np.sin(d0)[..., 0])
             # print(f"d1 {d1[0]}")
-            tmp = np.empty((4, 1, 2))
-            tmp[..., 0] = np.cos(d0)
-            tmp[..., 1] = -np.sin(d0)
             # print(f"tmp: {tmp}")
-            # out[..., 0:2] = np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1])))
-            out[..., 0:2] = tmp
+            out[..., 0:2] = np.column_stack((dummy(np.cos(d0), [0, 1]), dummy(-np.sin(d0), [0, 1])))
+
             # print(f"out: {out[..., 0:2]}")
             if self.parameters['r0'] is not None:
                 out[..., 0:2] *= self.parameters['r0'] * np.exp(d1)
@@ -409,11 +431,6 @@ class t_radial(Transform):
                 out[..., 0:2] *= d1
             out[..., 0:2] += self.parameters['origin'][0:2]
 
-            out = out.reshape(og_shape)
             return out
 
-    def __dummy(self, data, shape):
-        if type(data) is np.ndarray:
-            return np.ones((shape[0] + 1, shape[1]), dtype=np.float64) * data[:, np.newaxis]
-        else:
-            return np.ones((shape[0] + 1, shape[1]), dtype=np.float64) * data
+
