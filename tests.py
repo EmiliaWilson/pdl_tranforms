@@ -154,6 +154,15 @@ class TestLinear(unittest.TestCase):
         print(t_lin.apply(data))
         self.assertTrue(True)
 
+    def test_scale(self):
+        data = ndcoords(3, 3)
+        params = {'matrix': None, 'rot': None, 'scale': np.array([0, 2]), 'pre': None, 'post': None, 'dims': 2}
+        t_lin = Transform.t_linear(name='t_lin5', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        print(t_lin.apply(data))
+        self.assertTrue(True)
+
 
 class TestCompose(unittest.TestCase):
     data = np.array((1, 2, 3), dtype=np.float64)
@@ -178,6 +187,30 @@ class TestCompose(unittest.TestCase):
     t_lin5 = Transform.t_linear(name='t_lin5', input_coord=['input', 'coord'], input_unit=units.meter,
                                 output_coord=['output', 'coord'],
                                 output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+    params = {'matrix': None, 'rot': None, 'scale': None, 'pre': np.array((-1024, -1024)), 'post': None, 'dims': 2}
+    t_lin6 = Transform.t_linear(name='t_lin6', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'],
+                                output_unit=units.centimeter, parameters=params, reverse_flag=0)
+    params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': None, 'post': None, 'dims': 2}
+    t_lin7 = Transform.t_linear(name='t_lin6', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'],
+                                output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+    params = {'matrix': None, 'rot': None, 'scale': None, 'pre': None, 'post': np.array((1024, 1024)), 'dims': 2}
+    t_lin8 = Transform.t_linear(name='t_lin6', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'],
+                                output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+    params = {'matrix': None, 'rot': 90, 'scale': None, 'pre': np.array((-1024, -1024)), 'post': np.array((1024, 1024)), 'dims': 2}
+    t_lin9 = Transform.t_linear(name='t_lin6', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'],
+                                output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+    params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
+    t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                reverse_flag=0)
 
     def test_all_transforms(self):
         t_comp = Transform.t_compose([self.t_lin5, self.t_lin2, self.t_lin])
@@ -211,6 +244,23 @@ class TestCompose(unittest.TestCase):
         self.assertAlmostEqual(data_out[0], final_data[0])
         self.assertAlmostEqual(data_out[1], final_data[1])
         self.assertAlmostEqual(data_out[2], final_data[2])
+
+    def test_map(self):
+        t_comp = Transform.t_compose([self.t_lin8, self.t_lin7, self.t_lin6])
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+
+        hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
+        image_data = hdul[0].data * 1e1
+        plt.figure()
+        plt.imshow(image_data, origin='lower')
+        plt.show(block=False)
+        self.assertTrue(True)
+        map_out = t_comp.map(image_data)
+        plt.figure()
+        plt.imshow(map_out, origin='lower')
+        plt.show(block=False)
+        plt.show()
 
 
 class TestRadial(unittest.TestCase):
@@ -298,27 +348,58 @@ class TestMap(unittest.TestCase):
         from scipy.interpolate import interpn
 
         hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
-        image_data = hdul[0].data * 1e1
+        image_data = hdul[0].data * 1e10
         plt.figure()
         plt.imshow(image_data, origin='lower')
         plt.show(block=False)
-        print(image_data.shape)
+        # print(image_data.shape)
 
-        params = {'matrix': np.array(([1, 0], [0.5, 1])), 'rot': None, 'scale': None, 'pre': None, 'post': None,
+        params = {'matrix': np.array(([1, 0], [0, 6.28/2000.0])), 'rot': None, 'scale': None, 'pre': None, 'post': None,
                   'dims': 2}
-        t_lin = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
+        t_lin = Transform.t_linear(name='t_lin', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+        params = {'matrix': None, 'rot': None, 'scale': None, 'pre': np.array((-1024, -1024)),
+                  'post': None,
+                  'dims': 2}
+        t_lin2 = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
         params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
         t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
                                     output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
                                     reverse_flag=0)
-        print(image_data)
-        map_out = t_lin.map(data=image_data)
+        # print(image_data)
+        t_comp = Transform.t_compose([t_lin, t_rad1, t_lin2])
+        map_out = t_comp.map(data=image_data)
+        # inter1 = t_lin.map(image_data)
+        # map_out = t_rad1.map(image_data)
+        print(map_out.max())
+        print(map_out.min())
+        print(map_out.mean())
         plt.figure()
-        plt.imshow(map_out, origin='lower')
+        plt.imshow(map_out.clip(min=-0.5, max=2).transpose(), origin='lower')
         plt.show(block=False)
         plt.show()
+
+    def test_radial(self):
+
+        params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
+        t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                    output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                    reverse_flag=0)
+
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+
+        from scipy.interpolate import interpn
+
+        hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
+        image_data = hdul[0].data
+        map_out = t_rad1.map(image_data).transpose()
+        print(map_out[1300, 1800])
+
+        self.assertTrue(True)
 
 
 class TestNDCoords(unittest.TestCase):
@@ -337,7 +418,7 @@ class TestNDCoords(unittest.TestCase):
         # print(ndc)
         # ndc = ndc.reshape((np.product(ndc.shape[:-1]), ndc.shape[-1]))
         data = np.array(([0, 0], [1, 0], [1, 1], [0, 1]), dtype=np.float64)
-        print(f"apply: {t_rad1.apply(ndc, backward=1)}")
+        print(f"apply: {t_rad1.apply(data, backward=1)}")
         # print(f"matmul: {np.matmul(ndc, t_lin.parameters['matrix'])}")
 
         self.assertTrue(True)
@@ -346,12 +427,13 @@ class TestNDCoords(unittest.TestCase):
         import copy
         data = ndcoords(3, 3)
         d0 = copy.deepcopy(data[..., 0])
-        d1 = copy.deepcopy(dummy(data[..., 1], [0, 2]))
+        d1 = copy.deepcopy(dummy(data[..., 1], [2, 2]))
         out = copy.deepcopy(data)
+        print(d1)
         test = np.array(([0, 1, 2, 3], [4, 5, 6, 7]))
 
-        print(dummy(test, np.array((1, 3))))
-        print(dummy(test, np.array((1, 3))).shape)
+        # print(dummy(test, np.array((1, 3))))
+        # print(dummy(test, np.array((1, 3))).shape)
 
         self.assertTrue(True)
 

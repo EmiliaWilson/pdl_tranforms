@@ -15,7 +15,7 @@ def ndcoords(*dims):
             grid_size.append(range(dims[0][i]))
     else:
         for i in range(len(dims)):
-            print(type(dims[i]), dims[i])
+            # print(type(dims[i]), dims[i])
             grid_size.append(range(dims[i]))
 
     out = np.mgrid[grid_size]
@@ -26,12 +26,19 @@ def ndcoords(*dims):
 
 def dummy(data, dim):
     data_shape = list(data.shape)
-    if dim[0] < -len(data_shape):
+    if dim[0] < -(len(data_shape)+1):
         raise ValueError("For safety, pos < -(data.ndims+1) forbidden in dummy")
+    elif dim[0] < 0:
+        if dim[0] == -1:
+            data_shape.append(dim[1])
+        else:
+            data_shape.insert(dim[0] + len(data_shape) + 1, dim[1])
     elif dim[0] > len(data_shape) - 1:
         while len(data_shape) - 1 < dim[0] - 1:
             data_shape.append(1)
-    data_shape.insert(dim[0], dim[1])
+        data_shape.insert(dim[0], dim[1])
+    else:
+        data_shape.insert(dim[0], dim[1])
     new_data = np.ones(data_shape, dtype=np.float64)
     if is_broadcastable(new_data.shape, data[..., np.newaxis].shape):
         return new_data * data[..., np.newaxis]
@@ -263,13 +270,13 @@ class t_linear(Transform):
                 self.parameters['matrix'] = np.matmul(self.parameters['matrix'], rot_matrix)
 
         # applying scaling. No matrix. Documentation
-        if self.parameters['scale'] is not None and type((self.parameters['scale']) is not np.ndarray):
-
+        if (self.parameters['scale'] is not None) and not (isinstance((self.parameters['scale']), np.ndarray)):
+            print(type(self.parameters['scale']) is np.ndarray)
             for j in range(self.parameters['matrix'].shape[0]):
                 self.parameters['matrix'][j][j] *= self.parameters['scale']
 
         elif type(self.parameters['scale']) is np.ndarray:
-            if self.parameters['scale'].ndims > 1:
+            if self.parameters['scale'].ndim > 1:
                 raise ValueError("Scale only accepts scalars and 1D arrays")
             else:
                 # this might be wrong
@@ -294,7 +301,7 @@ class t_linear(Transform):
         # print(data.shape)
         if (not backward and not self.reverse_flag) or (backward and self.reverse_flag):
             d = self.parameters['matrix'].shape[0]
-            print(data.shape)
+            # print(data.shape)
             if d > np.shape(data)[-1]:
                 raise ValueError(f"Linear transform: transform is {np.shape(data)[-1]} data only ")
 
@@ -413,17 +420,17 @@ class t_radial(Transform):
             return out
         else:
             d0 = copy.deepcopy(data[..., 0])
-            d1 = copy.deepcopy(dummy(data[..., 1], [0, 2]))
+            d1 = copy.deepcopy(dummy(data[..., 1], [-1, 2]))
             out = copy.deepcopy(data)
 
             d0 /= self._argunit
-            # print(np.column_stack((self.__dummy(np.cos(d0), [0, 1]), self.__dummy(-np.sin(d0), [0, 1]))))
-            # print(np.cos(d0)[..., 0])
-            # print(-np.sin(d0)[..., 0])
-            # print(f"d1 {d1[0]}")
-            # print(f"tmp: {tmp}")
-            out[..., 0:2] = np.column_stack((dummy(np.cos(d0), [0, 1]), dummy(-np.sin(d0), [0, 1])))
+            # print(f"d0: {d0}\nd1: {d1}\nout0...2: {out[..., 0:2]}\n")
+            # print(dummy(np.cos(d0), [-1, 1]))
+            # print(dummy(-np.sin(d0), [-1, 1]))
+            # print(np.stack((dummy(np.cos(d0), [-1, 1]), dummy(-np.sin(d0), [-1, 1])), axis=-1).squeeze())
 
+            out[..., 0:2] = np.stack((dummy(np.cos(d0), [-1, 1]), dummy(-np.sin(d0), [-1, 1])), axis=-1).squeeze()
+            # out[..., 0:2] = np.stack((dummy(-np.sin(d0), [-1, 1]), dummy(np.cos(d0), [-1, 1])), axis=-1).squeeze()
             # print(f"out: {out[..., 0:2]}")
             if self.parameters['r0'] is not None:
                 out[..., 0:2] *= self.parameters['r0'] * np.exp(d1)
