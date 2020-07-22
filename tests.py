@@ -156,7 +156,7 @@ class TestLinear(unittest.TestCase):
 
     def test_scale(self):
         data = ndcoords(3, 3)
-        params = {'matrix': None, 'rot': None, 'scale': np.array([0, 2]), 'pre': None, 'post': None, 'dims': 2}
+        params = {'matrix': None, 'rot': None, 'scale': np.array([2, 3]), 'pre': None, 'post': None, 'dims': 2}
         t_lin = Transform.t_linear(name='t_lin5', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
@@ -337,6 +337,13 @@ class TestRadial(unittest.TestCase):
         self.assertAlmostEqual(data_out[1], -0.034904813)
         self.assertAlmostEqual(data_out[2], 3)
 
+    def test_unit_circle(self):
+        data_points = np.array(([0, 0], [1, 0], [np.sqrt(3) / 2, .5], [1 / np.sqrt(2), 1 / np.sqrt(2)]))
+        data_out = self.t_rad1.apply(data_points)
+        print(data_out)
+        self.assertTrue(True)
+
+
 
 class TestMap(unittest.TestCase):
     # Autoscaling
@@ -354,7 +361,7 @@ class TestMap(unittest.TestCase):
         plt.show(block=False)
         # print(image_data.shape)
 
-        params = {'matrix': np.array(([1, 0], [0, 6.28/2000.0])), 'rot': None, 'scale': None, 'pre': None, 'post': None,
+        params = {'matrix': None, 'rot': None, 'scale': np.array([1, 2048/6.28]), 'pre': None, 'post': None,
                   'dims': 2}
         t_lin = Transform.t_linear(name='t_lin', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
@@ -378,7 +385,7 @@ class TestMap(unittest.TestCase):
         print(map_out.min())
         print(map_out.mean())
         plt.figure()
-        plt.imshow(map_out.clip(min=-0.5, max=2).transpose(), origin='lower')
+        plt.imshow(map_out.transpose(), origin='lower')
         plt.show(block=False)
         plt.show()
 

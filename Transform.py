@@ -27,7 +27,7 @@ def ndcoords(*dims):
 def dummy(data, dim):
     data_shape = list(data.shape)
     if dim[0] < -(len(data_shape)+1):
-        raise ValueError("For safety, pos < -(data.ndims+1) forbidden in dummy")
+        raise ValueError("For safety, pos < -(data.ndim+1) forbidden in dummy")
     elif dim[0] < 0:
         if dim[0] == -1:
             data_shape.append(dim[1])
@@ -271,7 +271,7 @@ class t_linear(Transform):
 
         # applying scaling. No matrix. Documentation
         if (self.parameters['scale'] is not None) and not (isinstance((self.parameters['scale']), np.ndarray)):
-            print(type(self.parameters['scale']) is np.ndarray)
+            # print(type(self.parameters['scale']) is not np.ndarray)
             for j in range(self.parameters['matrix'].shape[0]):
                 self.parameters['matrix'][j][j] *= self.parameters['scale']
 
@@ -281,7 +281,7 @@ class t_linear(Transform):
             else:
                 # this might be wrong
                 for j in range(self.parameters['matrix'].shape[0]):
-                    self.parameters['matrix'][j][j] *= self.parameters['scale'][j]
+                    self.parameters['matrix'][j] *= self.parameters['scale'][j]
 
         # need to check for inverse and set inverted flag. Throw error in apply
         self._non_invertible = 0
