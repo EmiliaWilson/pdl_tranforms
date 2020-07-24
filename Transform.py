@@ -429,8 +429,8 @@ class t_radial(Transform):
             # print(dummy(-np.sin(d0), [-1, 1]))
             # print(np.stack((dummy(np.cos(d0), [-1, 1]), dummy(-np.sin(d0), [-1, 1])), axis=-1).squeeze())
 
-            out[..., 0:2] = np.stack((dummy(np.cos(d0), [-1, 1]), dummy(-np.sin(d0), [-1, 1])), axis=-1).squeeze()
-            # out[..., 0:2] = np.stack((dummy(-np.sin(d0), [-1, 1]), dummy(np.cos(d0), [-1, 1])), axis=-1).squeeze()
+            # out[..., 0:2] = np.stack((dummy(np.cos(d0), [-1, 1]), dummy(-np.sin(d0), [-1, 1])), axis=-1).squeeze()
+            out[..., 0:2] = np.stack((dummy(-np.sin(d0), [-1, 1]), dummy(np.cos(d0), [-1, 1])), axis=-1).squeeze()
             # print(f"out: {out[..., 0:2]}")
             if self.parameters['r0'] is not None:
                 out[..., 0:2] *= self.parameters['r0'] * np.exp(d1)
@@ -438,6 +438,6 @@ class t_radial(Transform):
                 out[..., 0:2] *= d1
             out[..., 0:2] += self.parameters['origin'][0:2]
 
-            return out
+            return out.tranpose()
 
 
