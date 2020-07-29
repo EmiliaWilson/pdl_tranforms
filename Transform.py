@@ -438,6 +438,6 @@ class t_radial(Transform):
                 out[..., 0:2] *= d1
             out[..., 0:2] += self.parameters['origin'][0:2]
 
-            return out.tranpose()
+            return out
 
 

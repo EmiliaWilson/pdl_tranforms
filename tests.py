@@ -361,7 +361,7 @@ class TestMap(unittest.TestCase):
         plt.show(block=False)
         # print(image_data.shape)
 
-        params = {'matrix': None, 'rot': None, 'scale': np.array([1, 2048/6.28]), 'pre': None, 'post': None,
+        params = {'matrix': None, 'rot': 30, 'scale': None, 'pre': None, 'post': None,
                   'dims': 2}
         t_lin = Transform.t_linear(name='t_lin', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
@@ -372,20 +372,13 @@ class TestMap(unittest.TestCase):
         t_lin2 = Transform.t_linear(name='t_lin2', input_coord=['input', 'coord'], input_unit=units.meter,
                                    output_coord=['output', 'coord'],
                                    output_unit=units.centimeter, parameters=params, reverse_flag=0)
-        params = {'direct': None, 'r0': None, 'origin': np.array((0, 0)), 'u': 'radians'}
-        t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
-                                    output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
-                                    reverse_flag=0)
         # print(image_data)
-        t_comp = Transform.t_compose([t_lin, t_rad1, t_lin2])
-        map_out = t_comp.map(data=image_data)
-        # inter1 = t_lin.map(image_data)
-        # map_out = t_rad1.map(image_data)
+        map_out = t_lin.map(data=image_data)
         print(map_out.max())
         print(map_out.min())
         print(map_out.mean())
         plt.figure()
-        plt.imshow(map_out.transpose(), origin='lower')
+        plt.imshow(map_out, origin='lower')
         plt.show(block=False)
         plt.show()
 
@@ -421,6 +414,35 @@ class TestMap(unittest.TestCase):
         print(map_out[1300, 1800])
 
         self.assertTrue(True)
+
+    def test_compose(self):
+        params = {'matrix': None, 'rot': None, 'scale': np.array([2048 / 6.28, 1]), 'pre': None, 'post': None,
+                  'dims': 2}
+        t_lin = Transform.t_linear(name='t_lin', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+        params = {'direct': None, 'r0': None, 'origin': np.array((1024, 1024)), 'u': 'radians'}
+        t_rad1 = Transform.t_radial(name='t_rad1', input_coord=['input', 'coord'], input_unit=units.meter,
+                                    output_coord=['output', 'coord'], output_unit=units.meter, parameters=params,
+                                    reverse_flag=0)
+
+        params = {'matrix': None, 'rot': None, 'scale': 2, 'pre': None, 'post': None,
+                  'dims': 2}
+        t_lin2 = Transform.t_linear(name='t_lin', input_coord=['input', 'coord'], input_unit=units.meter,
+                                   output_coord=['output', 'coord'],
+                                   output_unit=units.centimeter, parameters=params, reverse_flag=0)
+
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        hdul = fits.open('C:\\Users\Jake\Desktop\CU_2020\CU_2020\L2_update.fts.gz')
+        image_data = hdul[0].data * 1e10
+        t_comp = Transform.t_compose([t_rad1, t_lin, t_lin2])
+        map_out = t_comp.map(image_data).transpose()
+        plt.figure()
+        plt.imshow(map_out, origin='lower')
+        plt.show(block=False)
+        plt.show()
 
 
 class TestNDCoords(unittest.TestCase):
